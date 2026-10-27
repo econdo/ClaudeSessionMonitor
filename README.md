@@ -150,6 +150,10 @@ ClaudeSessionMonitor/
 
 No tiene dependencias externas: solo SwiftUI, AppKit, Network, CryptoKit, Security, ServiceManagement y UserNotifications.
 
+## Licencia
+
+Código abierto bajo la licencia [MIT No Attribution (MIT-0)](LICENSE). Puedes usarlo, copiarlo, modificarlo, distribuirlo y venderlo, también dentro de proyectos cerrados o comerciales, sin pedir permiso y sin tener que citar la fuente. Se ofrece tal cual, sin garantías.
+
 ## Aviso legal
 
-Claude y Anthropic son marcas de Anthropic, PBC. Este es un proyecto independiente sin relación con Anthropic. El repositorio no incluye el logo de Claude: la app lo lee en tiempo de ejecución de la app de escritorio de Claude instalada en tu Mac.
+Claude y Anthropic son marcas de Anthropic, PBC. Este es un proyecto independiente sin relación con Anthropic. El repositorio no incluye el logo de Claude: la app lo lee en tiempo de ejecución de la app de escritorio de Claude instalada en tu Mac. La licencia cubre el código de este repositorio y no da ningún derecho sobre esas marcas ni sobre el logo.
