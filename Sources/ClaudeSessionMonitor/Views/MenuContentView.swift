@@ -79,26 +79,19 @@ struct MenuContentView: View {
                 }
                 ForEach(store.accounts) { account in
                     AccountCard(account: account)
-                        .id(account.id)
                 }
             }
             .padding(12)
 
-            ScrollViewReader { proxy in
-                VStack(spacing: 0) {
-                    WeeklySummary { id in
-                        withAnimation { proxy.scrollTo(id, anchor: .top) }
-                    }
-                    Divider()
-                    ScrollView {
-                        list.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                            cardsHeight = height
-                            Self.lastCardsHeight = height
-                        }
-                    }
-                    .frame(height: min(cardsHeight, maxCardsHeight))
+            WeeklySummary()
+            Divider()
+            ScrollView {
+                list.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                    cardsHeight = height
+                    Self.lastCardsHeight = height
                 }
             }
+            .frame(height: min(cardsHeight, maxCardsHeight))
         }
     }
 

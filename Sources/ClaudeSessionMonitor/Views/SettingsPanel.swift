@@ -18,7 +18,7 @@ struct SettingsPanel: View {
             }
 
             if !store.accounts.isEmpty {
-                Picker("Cuenta en la barra", selection: Binding(
+                Picker("Cuenta activa", selection: Binding(
                     get: { store.menuBarAccount?.id },
                     set: { store.menuBarAccountID = $0 }
                 )) {

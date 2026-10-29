@@ -1,23 +1,25 @@
 import SwiftUI
 
 /// Resumen fijo en lo alto del panel: el uso semanal de cada cuenta, una fila por cuenta.
+/// Con varias cuentas, cada fila sirve también para elegir la cuenta activa (la que se muestra en la barra de menús).
 struct WeeklySummary: View {
     @Environment(AccountStore.self) private var store
-    /// Si se indica, cada fila es pulsable (se usa para saltar a la tarjeta de la cuenta cuando la lista hace scroll).
-    var onSelect: ((UUID) -> Void)?
 
     var body: some View {
+        let selectable = store.accounts.count > 1
+
         VStack(alignment: .leading, spacing: 7) {
             Text("Uso semanal")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
             ForEach(store.accounts) { account in
-                if let onSelect {
-                    Button { onSelect(account.id) } label: { row(account) }
+                if selectable {
+                    Button { store.menuBarAccountID = account.id } label: { row(account, selectable: true) }
                         .buttonStyle(.plain)
+                        .help("Pulsa para mostrar esta cuenta en la barra de menús")
                 } else {
-                    row(account)
+                    row(account, selectable: false)
                 }
             }
         }
@@ -25,14 +27,23 @@ struct WeeklySummary: View {
         .padding(.vertical, 10)
     }
 
-    private func row(_ account: Account) -> some View {
+    private func row(_ account: Account, selectable: Bool) -> some View {
         let weekly = store.usage[account.id]?.weekly
         let percent = weekly?.effectivePercent(at: store.now)
+        let isActive = selectable && store.menuBarAccount?.id == account.id
 
         return HStack(spacing: 6) {
-            Avatar(text: account.title, size: 18)
+            if selectable {
+                Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(isActive ? .primary : .tertiary)
+                    .frame(width: 18)
+                    .accessibilityLabel(isActive ? "Cuenta activa" : "Cuenta no activa")
+            } else {
+                Avatar(text: account.title, size: 18)
+            }
             Text(account.title)
-                .font(.callout)
+                .font(.callout.weight(isActive ? .semibold : .regular))
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 6)
@@ -59,6 +70,5 @@ struct WeeklySummary: View {
             }
         }
         .contentShape(Rectangle())
-        .help(Formatting.resetDescription(for: weekly?.resetsAt, now: store.now) ?? "")
     }
 }

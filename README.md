@@ -16,12 +16,12 @@ Si alternas entre varias cuentas de Claude (personal, trabajo, clientes…), de 
 
 ## Qué hace
 
-- **Resumen semanal arriba del todo**: una fila por cuenta con el porcentaje semanal consumido y cuándo se reinicia («hoy 20:57», «mañana 14:57», «sáb 10:45»).
+- **Resumen semanal arriba del todo**: una fila por cuenta con el porcentaje semanal consumido y cuándo se reinicia («hoy 20:57», «mañana 14:57», «sáb 10:45»). Pulsando una fila eliges la cuenta activa.
 - **Tarjeta por cuenta** con:
   - **Sesión actual**: la ventana de 5 horas, con cuenta atrás hasta el reinicio.
   - **Semana actual (todos los modelos)**: el límite semanal general.
   - **Límites semanales por modelo**, si tu plan los tiene.
-- **Icono en la barra de menús**: el logo de Claude se rellena de abajo arriba según el uso semanal de la cuenta que elijas. Al lado puede mostrar el porcentaje de la sesión, el semanal, los dos o ninguno.
+- **Icono en la barra de menús**: el logo de Claude se rellena de abajo arriba según el uso semanal de la **cuenta activa**, la que estás usando en ese momento. Al lado puede mostrar el porcentaje de la sesión, el semanal, los dos o ninguno.
 - **Avisos** del sistema cuando una cuenta llega al 80 % y al 95 % de la sesión o de la semana.
 - **Actualización automática**: cada pocos minutos (configurable), al despertar el Mac y justo después de cada reinicio de ventana.
 - Interfaz **monocroma**, que se adapta al modo claro y al oscuro.
@@ -63,11 +63,17 @@ Repite el proceso con cada cuenta.
 
 Si el navegador no consigue volver a la app tras autorizar, por ejemplo por un bloqueador o un proxy, pulsa **«¿El navegador no vuelve a la app? Usar un código»**: Claude te mostrará un código para pegar en la app.
 
+### Elegir la cuenta activa
+
+La cuenta activa es la que representa el icono de la barra de menús: normalmente, la que estás usando en ese momento. Cuando hay más de una cuenta, cada fila del resumen **Uso semanal** lleva un selector ◉. Pulsa la fila de una cuenta para convertirla en la activa: su tarjeta mostrará la etiqueta **Activa** y el icono pasará a reflejar su consumo.
+
+También puedes cambiarla con **Marcar como activa**, en el menú **⋯** de cada tarjeta, o desde **Ajustes → Cuenta activa**.
+
 ### El icono de la barra de menús
 
 <p align="center"><img src="docs/icono-barra.png" width="480" alt="El logo de Claude relleno al 25, 50, 75 y 100 % de uso semanal"></p>
 
-El logo se rellena según el **uso semanal** de la cuenta elegida, y la parte sin consumir queda translúcida. Es una imagen de plantilla, así que macOS la pinta en blanco o en negro según el color de la barra. Si la sesión de esa cuenta caduca, aparece un `!`.
+El logo se rellena según el **uso semanal** de la cuenta activa, y la parte sin consumir queda translúcida. Es una imagen de plantilla, así que macOS la pinta en blanco o en negro según el color de la barra. Si la sesión de esa cuenta caduca, aparece un `!`.
 
 ### Ajustes
 
@@ -76,12 +82,12 @@ Se abren con el engranaje, abajo a la derecha del panel.
 | Ajuste | Qué hace |
 | --- | --- |
 | Actualizar cada | Frecuencia de consulta: 1, 2, 5 (por defecto), 10, 15 o 30 minutos |
-| Cuenta en la barra | Qué cuenta representa el icono |
+| Cuenta activa | Qué cuenta representa el icono (también se elige desde el resumen) |
 | Texto en la barra | Sesión actual, semanal, ambos o solo icono |
 | Avisar al llegar al 80 % y 95 % | Notificaciones del sistema al cruzar esos umbrales |
 | Abrir al iniciar sesión en el Mac | Arranque automático |
 
-Desde el menú **⋯** de cada tarjeta puedes actualizar esa cuenta, mostrarla en la barra, renombrarla (por ejemplo «Trabajo»), volver a iniciar sesión, cambiar su orden o quitarla.
+Desde el menú **⋯** de cada tarjeta puedes actualizar esa cuenta, marcarla como activa, renombrarla (por ejemplo «Trabajo»), volver a iniciar sesión, cambiar su orden o quitarla.
 
 ## Cómo funciona
 

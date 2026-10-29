@@ -10,6 +10,8 @@ struct AccountCard: View {
 
     private var status: AccountStatus { store.status[account.id] ?? .idle }
     private var snapshot: UsageSnapshot? { store.usage[account.id] }
+    /// Solo tiene sentido hablar de cuenta activa cuando hay más de una.
+    private var isActive: Bool { store.accounts.count > 1 && store.menuBarAccount?.id == account.id }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -76,11 +78,13 @@ struct AccountCard: View {
                 Button("OK", action: commitRename)
                     .controlSize(.small)
             } else {
-                if store.accounts.count > 1, store.menuBarAccount?.id == account.id {
-                    Image(systemName: "menubar.rectangle")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .help("Esta cuenta es la que se muestra en la barra de menús")
+                if isActive {
+                    Text("Activa")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(.primary.opacity(0.1), in: Capsule())
+                        .help("Esta es la cuenta que se muestra en la barra de menús")
                 }
                 actionsMenu
             }
@@ -127,8 +131,11 @@ struct AccountCard: View {
             Button("Actualizar") {
                 Task { await store.refresh(account.id, manual: true) }
             }
-            Button("Mostrar en la barra de menús") {
-                store.menuBarAccountID = account.id
+            if store.accounts.count > 1 {
+                Button("Marcar como activa") {
+                    store.menuBarAccountID = account.id
+                }
+                .disabled(isActive)
             }
             Button("Renombrar…") {
                 draftName = account.customName ?? ""
