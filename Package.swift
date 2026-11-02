@@ -11,6 +11,14 @@ let package = Package(
             swiftSettings: [
                 .defaultIsolation(MainActor.self)
             ]
-        )
+        ),
+        .testTarget(
+            name: "ClaudeSessionMonitorTests",
+            dependencies: ["ClaudeSessionMonitor"],
+            path: "Tests/ClaudeSessionMonitorTests",
+            swiftSettings: [
+                .defaultIsolation(MainActor.self)
+            ]
+        ),
     ]
 )

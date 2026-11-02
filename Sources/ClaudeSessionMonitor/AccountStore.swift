@@ -58,6 +58,7 @@ final class AccountStore {
     @ObservationIgnored private var tokens: [UUID: OAuthTokens] = [:]
     @ObservationIgnored private var inFlight: Set<UUID> = []
     @ObservationIgnored private var blockedUntil: [UUID: Date] = [:]
+    @ObservationIgnored private var lastProfileCheck: [UUID: Date] = [:]
     @ObservationIgnored private var notified: [String: Int]
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var clockTask: Task<Void, Never>?
@@ -75,6 +76,7 @@ final class AccountStore {
     }
 
     static let notificationThresholds = [80, 95]
+    private static let profileCheckInterval: TimeInterval = 3600
 
     init() {
         let defaults = UserDefaults.standard
@@ -113,8 +115,15 @@ final class AccountStore {
         startClock()
     }
 
+    var enabledAccounts: [Account] { accounts.filter { !$0.isDisabled } }
+
+    /// Orden en pantalla: las cuentas desactivadas siempre al final.
+    var displayAccounts: [Account] { enabledAccounts + accounts.filter(\.isDisabled) }
+
+    /// Si la cuenta elegida se desactiva, la barra pasa a la primera activable. Se conserva la elección
+    /// para que vuelva a ella si la cuenta se reactiva.
     var menuBarAccount: Account? {
-        accounts.first { $0.id == menuBarAccountID } ?? accounts.first
+        enabledAccounts.first { $0.id == menuBarAccountID } ?? enabledAccounts.first
     }
 
     var isRefreshing: Bool {
@@ -143,7 +152,7 @@ final class AccountStore {
                 try? await Task.sleep(for: .seconds(30))
                 guard let self else { return }
                 self.now = Date()
-                for account in self.accounts {
+                for account in self.enabledAccounts {
                     guard let snapshot = self.usage[account.id] else { continue }
                     let crossedReset = snapshot.limits.contains { limit in
                         guard let resetsAt = limit.resetsAt else { return false }
@@ -165,14 +174,23 @@ final class AccountStore {
     }
 
     func refresh(_ id: UUID, manual: Bool = false) async {
-        guard let account = accounts.first(where: { $0.id == id }), !inFlight.contains(id) else { return }
+        guard accounts.contains(where: { $0.id == id }), !inFlight.contains(id) else { return }
         if !manual, let until = blockedUntil[id], until > Date() { return }
         inFlight.insert(id)
         defer { inFlight.remove(id) }
 
         status[id] = .loading
         do {
+            // Un fallo al leer el perfil no cambia nada: se mantiene el último estado conocido de la cuenta.
+            if manual || isProfileCheckDue(id) { try? await updateProfile(id) }
+            guard let account = accounts.first(where: { $0.id == id }) else { return }
+            if account.isDisabled {
+                status[id] = .idle
+                return
+            }
+
             let snapshot = try await withValidToken(id) { try await ClaudeAPI.fetchUsage(accessToken: $0) }
+                .displayed(forPlan: account.plan)
             guard accounts.contains(where: { $0.id == id }) else { return }
             usage[id] = snapshot
             status[id] = .idle
@@ -186,6 +204,30 @@ final class AccountStore {
             status[id] = .error(ClaudeAPI.APIError.rateLimited(retryAfter: retryAfter).localizedDescription)
         } catch {
             status[id] = .error(error.localizedDescription)
+        }
+    }
+
+    private func isProfileCheckDue(_ id: UUID) -> Bool {
+        guard let last = lastProfileCheck[id] else { return true }
+        return Date().timeIntervalSince(last) >= Self.profileCheckInterval
+    }
+
+    /// Lee el plan y el estado de la suscripción, que pueden cambiar sin volver a iniciar sesión.
+    private func updateProfile(_ id: UUID) async throws {
+        let profile = try await withValidToken(id) { try await ClaudeAPI.fetchProfile(accessToken: $0) }
+        lastProfileCheck[id] = Date()
+        guard let index = accounts.firstIndex(where: { $0.id == id }) else { return }
+        apply(profile, toAccountAt: index)
+        saveAccounts()
+    }
+
+    private func apply(_ profile: ClaudeAPI.Profile, toAccountAt index: Int) {
+        if let email = profile.email { accounts[index].email = email }
+        accounts[index].displayName = profile.account.display_name ?? accounts[index].displayName
+        accounts[index].organizationName = profile.organization?.name ?? accounts[index].organizationName
+        accounts[index].plan = profile.planName ?? accounts[index].plan
+        if let inForce = profile.hasSubscriptionInForce {
+            accounts[index].subscriptionEnded = !inForce
         }
     }
 
@@ -315,24 +357,16 @@ final class AccountStore {
             }
             let email = profile?.email ?? response.account?.email_address ?? "Cuenta de Claude"
 
-            let id: UUID
-            if let index = accounts.firstIndex(where: { $0.accountUUID == accountUUID }) {
-                id = accounts[index].id
+            let index: Int
+            if let existing = accounts.firstIndex(where: { $0.accountUUID == accountUUID }) {
+                index = existing
                 accounts[index].email = email
-                accounts[index].displayName = profile?.account.display_name ?? accounts[index].displayName
-                accounts[index].organizationName = profile?.organization?.name ?? accounts[index].organizationName
-                accounts[index].plan = profile?.planName ?? accounts[index].plan
             } else {
-                id = UUID()
-                accounts.append(Account(
-                    id: id,
-                    accountUUID: accountUUID,
-                    email: email,
-                    displayName: profile?.account.display_name,
-                    organizationName: profile?.organization?.name,
-                    plan: profile?.planName
-                ))
+                accounts.append(Account(id: UUID(), accountUUID: accountUUID, email: email))
+                index = accounts.count - 1
             }
+            if let profile { apply(profile, toAccountAt: index) }
+            let id = accounts[index].id
             try Keychain.save(newTokens, for: id)
             tokens[id] = newTokens
             blockedUntil[id] = nil
@@ -361,11 +395,32 @@ final class AccountStore {
     }
 
     func move(_ id: UUID, by offset: Int) {
-        guard let index = accounts.firstIndex(where: { $0.id == id }) else { return }
-        let target = index + offset
-        guard accounts.indices.contains(target) else { return }
+        guard let index = accounts.firstIndex(where: { $0.id == id }), let target = moveTarget(id, by: offset) else { return }
         accounts.swapAt(index, target)
         saveAccounts()
+    }
+
+    func canMove(_ id: UUID, by offset: Int) -> Bool {
+        moveTarget(id, by: offset) != nil
+    }
+
+    /// Las desactivadas se muestran aparte, al final, así que cada cuenta solo se mueve entre las de su mismo grupo.
+    private func moveTarget(_ id: UUID, by offset: Int) -> Int? {
+        guard let account = accounts.first(where: { $0.id == id }) else { return nil }
+        let group = accounts.filter { $0.isDisabled == account.isDisabled }
+        guard let position = group.firstIndex(where: { $0.id == id }), group.indices.contains(position + offset) else { return nil }
+        let targetID = group[position + offset].id
+        return accounts.firstIndex { $0.id == targetID }
+    }
+
+    func setManuallyDisabled(_ id: UUID, _ disabled: Bool) {
+        guard let index = accounts.firstIndex(where: { $0.id == id }) else { return }
+        accounts[index].manuallyDisabled = disabled ? true : nil
+        status[id] = .idle
+        saveAccounts()
+        if !disabled {
+            Task { await refresh(id, manual: true) }
+        }
     }
 
     func remove(_ id: UUID) {
@@ -374,6 +429,7 @@ final class AccountStore {
         status[id] = nil
         tokens[id] = nil
         blockedUntil[id] = nil
+        lastProfileCheck[id] = nil
         if menuBarAccountID == id { menuBarAccountID = nil }
         Keychain.delete(id)
         saveAccounts()

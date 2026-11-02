@@ -11,16 +11,20 @@ struct AccountCard: View {
     private var status: AccountStatus { store.status[account.id] ?? .idle }
     private var snapshot: UsageSnapshot? { store.usage[account.id] }
     /// Solo tiene sentido hablar de cuenta activa cuando hay más de una.
-    private var isActive: Bool { store.accounts.count > 1 && store.menuBarAccount?.id == account.id }
+    private var isActive: Bool { store.enabledAccounts.count > 1 && store.menuBarAccount?.id == account.id }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
-            statusMessage
+            if account.isDisabled {
+                disabledMessage
+            } else {
+                statusMessage
+            }
             if confirmingDelete {
                 deleteConfirmation
             }
-            if let snapshot {
+            if !account.isDisabled, let snapshot {
                 let primary = snapshot.limits.filter(\.isPrimary)
                 let secondary = snapshot.limits.filter { !$0.isPrimary }
                 ForEach(primary) { limit in
@@ -38,7 +42,7 @@ struct AccountCard: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
-            } else if status == .loading {
+            } else if !account.isDisabled, status == .loading {
                 HStack {
                     ProgressView().controlSize(.small)
                     Text("Consultando…").font(.callout).foregroundStyle(.secondary)
@@ -47,6 +51,16 @@ struct AccountCard: View {
         }
         .padding(12)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
+        .opacity(account.isDisabled ? 0.7 : 1)
+    }
+
+    private var disabledMessage: some View {
+        Text(account.subscriptionEnded == true
+            ? "Sin suscripción en vigor. Si la renuevas, se reactivará sola."
+            : "La has desactivado: no se consulta su consumo.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var header: some View {
@@ -78,17 +92,23 @@ struct AccountCard: View {
                 Button("OK", action: commitRename)
                     .controlSize(.small)
             } else {
-                if isActive {
-                    Text("Activa")
-                        .font(.caption2.weight(.semibold))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(.primary.opacity(0.1), in: Capsule())
+                if account.isDisabled {
+                    badge("Desactivada")
+                } else if isActive {
+                    badge("Activa")
                         .help("Esta es la cuenta que se muestra en la barra de menús")
                 }
                 actionsMenu
             }
         }
+    }
+
+    private func badge(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(.primary.opacity(0.1), in: Capsule())
     }
 
     @ViewBuilder
@@ -131,7 +151,7 @@ struct AccountCard: View {
             Button("Actualizar") {
                 Task { await store.refresh(account.id, manual: true) }
             }
-            if store.accounts.count > 1 {
+            if store.enabledAccounts.count > 1, !account.isDisabled {
                 Button("Marcar como activa") {
                     store.menuBarAccountID = account.id
                 }
@@ -148,11 +168,16 @@ struct AccountCard: View {
             if store.accounts.count > 1 {
                 Divider()
                 Button("Subir") { store.move(account.id, by: -1) }
-                    .disabled(store.accounts.first?.id == account.id)
+                    .disabled(!store.canMove(account.id, by: -1))
                 Button("Bajar") { store.move(account.id, by: 1) }
-                    .disabled(store.accounts.last?.id == account.id)
+                    .disabled(!store.canMove(account.id, by: 1))
             }
             Divider()
+            if account.manuallyDisabled == true {
+                Button("Reactivar cuenta") { store.setManuallyDisabled(account.id, false) }
+            } else if account.subscriptionEnded != true {
+                Button("Desactivar cuenta") { store.setManuallyDisabled(account.id, true) }
+            }
             Button("Quitar cuenta…") {
                 confirmingDelete = true
             }
@@ -178,6 +203,11 @@ struct LimitRow: View {
 
     private var percent: Double { limit.effectivePercent(at: now) }
 
+    private var resetText: String? {
+        if limit.kind == "session", limit.resetsAt == nil { return "Sin sesión en curso" }
+        return Formatting.resetDescription(for: limit.resetsAt, now: now)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 3 : 4) {
             HStack(alignment: .firstTextBaseline) {
@@ -190,7 +220,7 @@ struct LimitRow: View {
                     .monospacedDigit()
             }
             UsageBar(fraction: percent / 100, height: compact ? 4 : 7)
-            if !compact || percent > 0, let reset = Formatting.resetDescription(for: limit.resetsAt, now: now) {
+            if !compact || percent > 0, let reset = resetText {
                 Text(reset)
                     .font(.caption)
                     .foregroundStyle(.secondary)

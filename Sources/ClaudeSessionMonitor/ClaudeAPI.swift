@@ -126,12 +126,16 @@ enum ClaudeAPI {
             let email: String?
             let email_address: String?
             let display_name: String?
+            let has_claude_max: Bool?
+            let has_claude_pro: Bool?
         }
 
         struct ProfileOrganization: Decodable {
             let name: String?
             let organization_type: String?
             let rate_limit_tier: String?
+            let plan_display_name: String?
+            let subscription_status: String?
         }
 
         let account: ProfileAccount
@@ -139,7 +143,24 @@ enum ClaudeAPI {
 
         var email: String? { account.email ?? account.email_address }
 
+        /// Si la cuenta tiene una suscripción en vigor; nil si el perfil no permite saberlo.
+        /// Es conservadora a propósito, porque un falso negativo apagaría una cuenta de pago: con el plan todavía
+        /// activo cuenta como vigente aunque el estado diga «canceled» (cancelada, pero pagada hasta fin de periodo).
+        var hasSubscriptionInForce: Bool? {
+            if account.has_claude_max == true || account.has_claude_pro == true { return true }
+            guard let organization else { return nil }
+            let status = (organization.subscription_status ?? "").lowercased()
+            let endedStatuses = ["canceled", "cancelled", "expired", "ended", "inactive", "incomplete_expired", "paused", "unpaid"]
+            if endedStatuses.contains(status) { return false }
+            if !status.isEmpty { return true }
+            // Sin estado ni plan personal: solo las organizaciones de equipo o empresa siguen teniendo contrato.
+            let type = (organization.organization_type ?? "").lowercased()
+            return type.contains("team") || type.contains("enterprise")
+        }
+
         var planName: String? {
+            // «Max» a secas se completa abajo con el nivel (Max 5x, Max 20x).
+            if let name = organization?.plan_display_name, !name.isEmpty, name.lowercased() != "max" { return name }
             let tier = organization?.rate_limit_tier ?? ""
             let type = organization?.organization_type ?? ""
             if tier.contains("max_20x") { return "Max 20x" }
@@ -157,7 +178,11 @@ enum ClaudeAPI {
     }
 
     static func fetchUsage(accessToken: String) async throws -> UsageSnapshot {
-        let response = try JSONDecoder().decode(UsageResponse.self, from: try await get(usageURL, accessToken: accessToken))
+        try parseUsage(try await get(usageURL, accessToken: accessToken))
+    }
+
+    static func parseUsage(_ data: Data) throws -> UsageSnapshot {
+        let response = try JSONDecoder().decode(UsageResponse.self, from: data)
         return UsageSnapshot(limits: response.normalizedLimits(), fetchedAt: Date())
     }
 

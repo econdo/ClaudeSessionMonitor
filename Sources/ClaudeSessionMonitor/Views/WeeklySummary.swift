@@ -6,15 +6,15 @@ struct WeeklySummary: View {
     @Environment(AccountStore.self) private var store
 
     var body: some View {
-        let selectable = store.accounts.count > 1
+        let selectable = store.enabledAccounts.count > 1
 
         VStack(alignment: .leading, spacing: 7) {
             Text("Uso semanal")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
-            ForEach(store.accounts) { account in
-                if selectable {
+            ForEach(store.displayAccounts) { account in
+                if selectable && !account.isDisabled {
                     Button { store.menuBarAccountID = account.id } label: { row(account, selectable: true) }
                         .buttonStyle(.plain)
                         .help("Pulsa para mostrar esta cuenta en la barra de menús")
@@ -33,7 +33,12 @@ struct WeeklySummary: View {
         let isActive = selectable && store.menuBarAccount?.id == account.id
 
         return HStack(spacing: 6) {
-            if selectable {
+            if account.isDisabled {
+                Image(systemName: "minus.circle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 18)
+            } else if selectable {
                 Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
                     .font(.system(size: 14))
                     .foregroundStyle(isActive ? .primary : .tertiary)
@@ -44,10 +49,15 @@ struct WeeklySummary: View {
             }
             Text(account.title)
                 .font(.callout.weight(isActive ? .semibold : .regular))
+                .foregroundStyle(account.isDisabled ? .secondary : .primary)
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 6)
-            if store.status[account.id] == .needsLogin {
+            if account.isDisabled {
+                Text("Desactivada")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if store.status[account.id] == .needsLogin {
                 Label("Sesión caducada", systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.secondary)

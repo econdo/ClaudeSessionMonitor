@@ -17,12 +17,12 @@ struct SettingsPanel: View {
                 }
             }
 
-            if !store.accounts.isEmpty {
+            if !store.enabledAccounts.isEmpty {
                 Picker("Cuenta activa", selection: Binding(
                     get: { store.menuBarAccount?.id },
                     set: { store.menuBarAccountID = $0 }
                 )) {
-                    ForEach(store.accounts) { account in
+                    ForEach(store.enabledAccounts) { account in
                         Text(account.title).tag(Optional(account.id))
                     }
                 }

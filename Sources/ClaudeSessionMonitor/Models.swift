@@ -18,6 +18,13 @@ struct Account: Codable, Identifiable, Hashable {
     var organizationName: String?
     var plan: String?
     var customName: String?
+    /// El perfil de Claude indica que ya no hay suscripción en vigor. Se actualiza solo: si se renueva, vuelve a false.
+    var subscriptionEnded: Bool?
+    /// El usuario la ha desactivado a mano desde el menú de la tarjeta.
+    var manuallyDisabled: Bool?
+
+    /// Una cuenta desactivada sigue en la lista, pero no se consulta su consumo ni puede ser la activa.
+    var isDisabled: Bool { subscriptionEnded == true || manuallyDisabled == true }
 
     var title: String {
         if let customName, !customName.isEmpty { return customName }
@@ -53,6 +60,16 @@ struct UsageSnapshot: Codable {
 
     var session: UsageLimit? { limits.first { $0.kind == "session" } }
     var weekly: UsageLimit? { limits.first { $0.kind == "weekly_all" } }
+
+    /// Ultra no tiene ventana de 5 h, pero la API puede devolver una sesión residual (0 % y sin hora de reinicio)
+    /// que no es un límite real. En los demás planes, como Max, esa misma respuesta significa que no hay ninguna
+    /// sesión en curso, y la fila se muestra. Una sesión con consumo o con hora de reinicio siempre se muestra.
+    func displayed(forPlan plan: String?) -> UsageSnapshot {
+        guard plan?.lowercased().contains("ultra") == true else { return self }
+        var snapshot = self
+        snapshot.limits.removeAll { $0.kind == "session" && $0.percent == 0 && $0.resetsAt == nil }
+        return snapshot
+    }
 }
 
 enum AccountStatus: Equatable {
@@ -72,7 +89,7 @@ enum MenuBarText: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .session: "Sesión actual"
+        case .session: "Sesión (o semanal)"
         case .weekly: "Semanal"
         case .sessionAndWeekly: "Sesión y semanal"
         case .none: "Solo icono"

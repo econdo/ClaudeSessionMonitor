@@ -77,7 +77,7 @@ struct MenuContentView: View {
                 if let email = store.lastAddedEmail {
                     addedBanner(email)
                 }
-                ForEach(store.accounts) { account in
+                ForEach(store.displayAccounts) { account in
                     AccountCard(account: account)
                 }
             }
