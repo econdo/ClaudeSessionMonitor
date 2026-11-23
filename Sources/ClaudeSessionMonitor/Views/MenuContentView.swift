@@ -7,6 +7,7 @@ struct MenuContentView: View {
     /// no se abra vacío antes de la primera medición.
     @State private var cardsHeight = MenuContentView.lastCardsHeight
     private static var lastCardsHeight: CGFloat = 200
+    @State private var contentHeight: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,6 +26,8 @@ struct MenuContentView: View {
             footer
         }
         .frame(width: 360)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        .background(WindowHeightFitter(contentHeight: contentHeight))
         // Monocromo: que casillas, foco y demás controles no usen el color de acento del sistema.
         .tint(.gray)
     }
@@ -147,5 +150,42 @@ struct MenuContentView: View {
         .buttonStyle(.borderless)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+}
+
+/// La ventana de un MenuBarExtra crece cuando el contenido crece, pero no se encoge cuando decrece (al quitar
+/// una cuenta, al abrir Ajustes…) y queda un hueco vacío. Esto la ajusta a la altura del contenido dejando fijo
+/// el borde superior, que es el que cuelga de la barra de menús.
+private struct WindowHeightFitter: NSViewRepresentable {
+    let contentHeight: CGFloat
+
+    func makeNSView(context: Context) -> FitterView { FitterView() }
+
+    func updateNSView(_ view: FitterView, context: Context) {
+        view.contentHeight = contentHeight
+    }
+
+    final class FitterView: NSView {
+        var contentHeight: CGFloat = 0 {
+            didSet { if contentHeight != oldValue { scheduleFit() } }
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            scheduleFit()
+        }
+
+        /// Fuera del ciclo de actualización de SwiftUI, que no admite cambiar la ventana a mitad de una maquetación.
+        private func scheduleFit() {
+            Task { @MainActor [weak self] in self?.fit() }
+        }
+
+        private func fit() {
+            guard let window, contentHeight > 0 else { return }
+            let content = window.contentRect(forFrameRect: window.frame)
+            guard abs(content.height - contentHeight) > 0.5 else { return }
+            let fitted = NSRect(x: content.minX, y: content.maxY - contentHeight, width: content.width, height: contentHeight)
+            window.setFrame(window.frameRect(forContentRect: fitted), display: true)
+        }
     }
 }
